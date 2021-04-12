@@ -1,4 +1,5 @@
-#define _POSIX_C_SOURCE 200809L
+//#define _POSIX_C_SOURCE 200809L
+#define _GNU_SOURCE
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,6 +10,19 @@
 #define PAGE_SIZE 0x1000
 
 #define FIND_LIB_NAME
+
+///////////////////////////////////////////////////////////////////////////////
+#include <sys/wait.h>
+#include <sched.h>
+
+#define STACK_SIZE (1024 * 1024)
+static char child_stack[STACK_SIZE];  // space for child's stack
+
+struct child_args {
+	int argc;
+	char ***argv;
+};
+///////////////////////////////////////////////////////////////////////////////
 
 static void print_page(uint64_t address, uint64_t data,
     const char *lib_name) {
@@ -64,7 +78,7 @@ void parse_maps(const char *maps_file, const char *pagemap_file) {
                 size_t x = i - 1;
                 while(x && buffer[x] != '\n') x --;
                 if(buffer[x] == '\n') x ++;
-                size_t beginning = x;
+                //size_t beginning = x;
 
                 while(buffer[x] != '-' && x+1 < sizeof buffer) {
                     char c = buffer[x ++];
@@ -133,17 +147,48 @@ void process_pid(pid_t pid) {
     parse_maps(maps_file, pagemap_file);
 }
 
-int main(int argc, char *argv[]) {
-    if(argc < 2) {
-        printf("Usage: %s pid1 [pid2...]\n", argv[0]);
-        return 1;
-    }
+static int childFunc(void *arg) {
+    printf("[child]: starting...");
+
+    int argc = ((struct child_args *)arg)->argc;
+    char **argv = *((struct child_args *)arg)->argv;
 
     for(int i = 1; i < argc; i ++) {
         pid_t pid = (pid_t)strtoul(argv[i], NULL, 0);
 
         printf("=== Maps for pid %d\n", (int)pid);
         process_pid(pid);
+    }
+
+    printf("[child]: exiting...");
+    return 0;
+}
+
+int main(int argc, char *argv[]) {
+    if(argc < 2) {
+        printf("Usage: %s pid1 [pid2...]\n", argv[0]);
+        return 1;
+    }
+
+    struct child_args *args = malloc(sizeof(*args));
+    if (NULL == args) {
+	    perror("malloc");
+	    return 1;
+    }
+    args->argc = argc;
+    args->argv = &argv;
+    printf("[parent]: forking...\n");
+    pid_t pid = clone(childFunc, child_stack + STACK_SIZE,
+        CLONE_NEWUSER | SIGCHLD, args); // ^ assume stack grows downwards
+    if (-1 == pid) {
+	    perror("clone");
+	    return 1;
+    }
+
+    printf("[parent]: waiting...");
+    if (-1 == waitpid(pid, NULL, 0)) {
+        perror("waitpid");
+	return 1;
     }
 
     return 0;
