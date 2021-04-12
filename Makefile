@@ -1,7 +1,7 @@
 # Makefile for pagemap
 
 CC = gcc
-CFLAGS = -std=c99
+CFLAGS = -std=c99 -Wall -Wextra
 
 .PHONY: all
 all: pagemap pagemap2
@@ -13,4 +13,4 @@ pagemap2: pagemap2.c
 
 .PHONY: clean
 clean:
-	-rm pagemap pagemap2
+	rm -f pagemap pagemap2

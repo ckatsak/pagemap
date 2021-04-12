@@ -1,4 +1,5 @@
-#define _POSIX_C_SOURCE 200809L
+//#define _POSIX_C_SOURCE 200809L
+#define _GNU_SOURCE
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -7,6 +8,10 @@
 #include <errno.h>
 #include <sys/types.h> 
 #define PAGE_SIZE 0x1000
+
+///////////////////////////////////////////////////////////////////////////////
+#include <sched.h>
+///////////////////////////////////////////////////////////////////////////////
 
 #define FIND_LIB_NAME
 
@@ -64,7 +69,7 @@ void parse_maps(const char *maps_file, const char *pagemap_file) {
                 size_t x = i - 1;
                 while(x && buffer[x] != '\n') x --;
                 if(buffer[x] == '\n') x ++;
-                size_t beginning = x;
+                //size_t beginning = x;
 
                 while(buffer[x] != '-' && x+1 < sizeof buffer) {
                     char c = buffer[x ++];
@@ -136,6 +141,11 @@ void process_pid(pid_t pid) {
 int main(int argc, char *argv[]) {
     if(argc < 2) {
         printf("Usage: %s pid1 [pid2...]\n", argv[0]);
+        return 1;
+    }
+
+    if (-1 == unshare(CLONE_NEWUSER)) {
+        perror("unshare");
         return 1;
     }
 
